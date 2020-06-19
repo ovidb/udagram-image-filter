@@ -1,5 +1,7 @@
 import fs from 'fs';
 import Jimp = require('jimp');
+import {NextFunction, Request, Response} from 'express';
+import axios from 'axios';
 
 // filterImageFromURL
 // helper function to download, filter, and save the filtered image locally
@@ -13,12 +15,12 @@ export async function filterImageFromURL(inputURL: string): Promise<string>{
         const photo = await Jimp.read(inputURL);
         const outpath = '/tmp/filtered.'+Math.floor(Math.random() * 2000)+'.jpg';
         await photo
-        .resize(256, 256) // resize
-        .quality(60) // set JPEG quality
-        .greyscale() // set greyscale
-        .write(__dirname+outpath, (img)=>{
-            resolve(__dirname+outpath);
-        });
+          .resize(256, 256) // resize
+          .quality(60) // set JPEG quality
+          .greyscale() // set greyscale
+          .write(outpath, (img)=>{
+              resolve(outpath);
+          });
     });
 }
 
@@ -31,4 +33,29 @@ export async function deleteLocalFiles(files:Array<string>){
     for( let file of files) {
         fs.unlinkSync(file);
     }
+}
+
+/**
+ * Middleware to handle authentication by calling the auth endpoint with a authorization header
+ * @param req
+ * @param res
+ * @param next
+ */
+export const requireAuth = async (req: Request, res: Response, next: NextFunction) => {
+  if (!req.headers || !req.headers.authorization){
+    return res.status(401).send({ message: 'No authorization headers.' });
+  }
+
+  const authVerifyURL = process.env.AUTH_VERIFY_URL;
+
+  try {
+    await axios.get(authVerifyURL, {
+      headers: {authorization: req.headers.authorization},
+      timeout: 3000,
+    });
+
+    return next();
+  } catch (e) {
+    return res.status(401).send({message: 'Unauthorized'})
+  }
 }
